@@ -2,17 +2,17 @@ from fbs_runtime.application_context.PyQt5 import ApplicationContext
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap, QImage
-from functions.py import *
+from functions import blurFunction
 
 import sys
 
 history = []
-# QImage -> void (modifies history state)
-# modifies array of images based on action
+# QImage or None ->  QImage 
+# modifies array of images based on action, returns highest index qimage (to be displayed)
 def modifyHistory(image, action):
     if action == "add":
         history.append(image) 
-    elif action == "remove":
+    elif action == "undo":
         history.pop(len(history) - 1)
     elif action == "open":
         history.clear
@@ -20,7 +20,14 @@ def modifyHistory(image, action):
     elif action == "reset":
         while len(history) > 1:
             history.pop(len(history) - 1)
+    return curImage()
 
+def curImage():
+    if len(history) > 0:        
+        latestImage = history[len(history) - 1]
+        return latestImage
+    else:
+        return False
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
@@ -48,42 +55,65 @@ class MainWindow(QMainWindow):
         fileMenu = QMenu("&File", self)
 
         self.openaction = QAction("open", self)
-        self.newaction = QAction("new", self)
+        self.openaction.setShortcut("Ctrl+O")
+        self.undoaction = QAction("undo", self)
+        self.undoaction.setShortcut("Ctrl+Z")
+        ################################
+        self.bluraction = QAction("blur", self)
+        self.bluraction.setShortcut("Ctrl+B")
+        #
         self.saveaction = QAction("save", self)
         self.saveaction.setShortcut("Ctrl+S")
         self.exitaction = QAction("exit", self)
+        self.exitaction.setShortcut("Alt+F4")
 
         fileMenu.addAction(self.openaction)
-        fileMenu.addAction(self.newaction)
+        fileMenu.addAction(self.undoaction)
         fileMenu.addAction(self.saveaction)
+        fileMenu.addAction(self.bluraction)
         fileMenu.addSeparator()
         fileMenu.addAction(self.exitaction)
 
         menuBar.addMenu(fileMenu)
         
-    def newFile(self):
-        self.centralWidget.setText("<b>File > New</b> clicked")
+    def undo(self):
+        # call modify history, remove image in last index of history
+        newImage = modifyHistory(None, "undo")
+        self.imageHandler(self, newImage, "display")
+
+
+        # pass this new image to imageHandler to be displayed
+        
 
     def openFile(self):
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getOpenFileName(self,"Select an image", "","Image Files (*.png *.jpg *.bmp)", options=options)
         if fileName:
-            pixmap1 = QPixmap(fileName)
-            self.ImageWindow.setPixmap(pixmap1)
-            
-            ## TODO static/global function to store list of images (for undo/reset)
-            ## TODO call QImage so that above functions can modify image
-            imageData = QImage(fileName)
-            self.change_imageData(imageData, "open")
+            imageData = QImage(fileName).convertToFormat(QImage.Format_RGB32)
+            self.imageHandler(self, imageData, "open")
     
     @staticmethod
-    def change_imageData(img, arg_str):
+    ## handles modifications/undo, changes history, updates display image
+    def imageHandler(self, img, arg_str):
+        if img == False:
+            return
         if arg_str == "open":
-            modifyHistory(img, "open")
-            
+            newImage = modifyHistory(img, "open")
         elif arg_str == "b":
-            modifyHistory(img, "add")
-        print(arg_str)
+            newImage = blurFunction(img)
+            newImage = modifyHistory(newImage, "add")
+        elif arg_str == "undo":
+            newImage = modifyHistory(img, "undo")
+        else:
+            newImage = img
+        self.displayNewImage(self, newImage)
+    
+    # QImage -> QPixmap -> void ()
+    @staticmethod
+    def displayNewImage(self, qimg):
+        pixmap = QPixmap.fromImage(qimg)
+        self.ImageWindow.setPixmap(pixmap)
+
   
     def saveFile(self):
         options = QFileDialog.Options()
@@ -97,10 +127,13 @@ class MainWindow(QMainWindow):
         sys.exit(exit_code)
 
     def connectActions(self):
-        self.newaction.triggered.connect(self.newFile)
+        self.undoaction.triggered.connect(self.undo)
         self.openaction.triggered.connect(self.openFile)
         self.saveaction.triggered.connect(self.saveFile)
         self.exitaction.triggered.connect(self.exitFile)
+        # when forward image modification is triggered, call image handler with the 
+        # appropriate argument string
+        self.bluraction.triggered.connect(lambda:self.imageHandler(self, curImage(), "b"))
 
     def createImageWindow(self):
         self.ImageWindow = QLabel()
