@@ -12,22 +12,22 @@ def imageToArray(img):
     return arr
 
 def arrayToImage(arr):
-    h, w, d = arr.shape
-    qimg = QImage(arr, h, w, d, QImage.Format_RGB32)
+    height, width, channel = arr.shape
+    bytesPerLine = 4 * width
+    qimg = QImage(arr.data, height, width, bytesPerLine, QImage.Format_RGB32)
     return qimg
 
 ## numpy array -> QImage
 #def arrayToImage(arr):
 
-## QImage -> QImage
+## numpy Array -> numpy Array
 def blurFunction(img):
-    raw = imageToArray(img)
     ## numpy array format: rows columns, color
     ## summed-area table is the sum of all the pixels above and to the left of (x, y), inclusive
-    shape = np.array(raw.shape)
+    shape = np.array(img.shape)
     ## initialize summed area table
     sAreaTable = np.empty(shape)  
-    for i, row in enumerate(raw):
+    for i, row in enumerate(img):
         for j, pix in enumerate(row):
             for k, color in enumerate(pix):
                 if i == 0 and j == 0:
@@ -52,8 +52,31 @@ def blurFunction(img):
                     blurredImage[i][j][k] = int(color)
                 else:
                     blurredImage[i][j][k] = round(sAreaTable[i+1][j+1][k] + sAreaTable[i-2][j-2][k] - sAreaTable[i+1][j-2][k] - sAreaTable[i-2][j+1][k]) /9
-    img = arrayToImage(blurredImage)
     return img
 
-# QImage -> QImage
+# numpy array -> numpy array
+def grayscaleFunction(img):
+    ## https://stackoverflow.com/questions/17615963/standard-rgb-to-grayscale-conversion
+
+    shape = np.array(img.shape)
+    grayedImage = np.empty(shape)
+    for i, row in enumerate(img):
+        for j, pix in enumerate(row):
+
+            ## compute linear transform of r[0]g[1]b[2] values
+            c_linear = (0.2126 * pix[0]/255) + (0.7152 * pix[1]/255) + (0.0722 * pix[2]/255)
+            c_srgb = 1
+
+            ## non-linear gamma correction
+            if c_linear <= 0.0031308:
+                c_srgb = c_linear * 12.92
+            else:
+                c_srgb = 1.055 * (c_linear**(1/2.4)) - 0.055
+            pix[0] = c_srgb * 255    
+            pix[1] = c_srgb * 255
+            pix[2] = c_srgb * 255  
+    return img
+
+
+                
 

@@ -2,25 +2,29 @@ from fbs_runtime.application_context.PyQt5 import ApplicationContext
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap, QImage
-from functions import blurFunction
+from functions import arrayToImage, imageToArray, blurFunction, grayscaleFunction
 
 import sys
 
 history = []
-# QImage or None ->  QImage 
-# modifies array of images based on action, returns highest index qimage (to be displayed)
+# QImage or False ->  void
+# modifies array of images based on action
 def modifyHistory(image, action):
     if action == "add":
         history.append(image) 
     elif action == "undo":
-        history.pop(len(history) - 1)
+        if len(history) <= 1:
+            return
+        else:
+            history.pop(len(history) - 1)
     elif action == "open":
         history.clear
         history.append(image)
     elif action == "reset":
         while len(history) > 1:
             history.pop(len(history) - 1)
-    return curImage()
+    return 
+    # history no longer return anything, instead image-handler will call curImage
 
 def curImage():
     if len(history) > 0:        
@@ -98,23 +102,36 @@ class MainWindow(QMainWindow):
         if img == False:
             return
         if arg_str == "open":
-            newImage = modifyHistory(img, "open")
+            modifyHistory(img, "open")
         elif arg_str == "b":
-            newImage = blurFunction(img)
-            newImage = modifyHistory(newImage, "add")
+            #img = arrayToImage(blurFunction(imageToArray(img)))
+            #modifyHistory(img, "add")
+            img = arrayToImage(grayscaleFunction(imageToArray(img)))
+            modifyHistory(img, "add")
+        elif arg_str == "gray":
+            img = arrayToImage(grayscaleFunction(imageToArray(img)))
+            modifyHistory(img, "add")
         elif arg_str == "undo":
-            newImage = modifyHistory(img, "undo")
-        else:
-            newImage = img
-        self.displayNewImage(self, newImage)
+            modifyHistory(False, "undo")
+
+        def curImage():
+            if len(history) > 0:        
+                latestImage = history[len(history) - 1]
+                return latestImage
+            else:
+                return False
+
+        displayedImage = curImage()
+        if not (displayedImage == False):
+            self.displayNewImage(self, displayedImage)
+        return
     
-    # QImage -> QPixmap -> void ()
+    # QImage -> void
     @staticmethod
     def displayNewImage(self, qimg):
         pixmap = QPixmap.fromImage(qimg)
         self.ImageWindow.setPixmap(pixmap)
-
-  
+        
     def saveFile(self):
         options = QFileDialog.Options()
         #options |= QFileDialog.DontUseNativeDialog
