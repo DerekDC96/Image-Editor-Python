@@ -18,13 +18,13 @@ def modifyHistory(image, action):
         else:
             history.pop(len(history) - 1)
     elif action == "open":
-        history.clear
+        history.clear() 
         history.append(image)
     elif action == "reset":
         while len(history) > 1:
             history.pop(len(history) - 1)
+    print(history)
     return 
-    # history no longer return anything, instead image-handler will call curImage
 
 def curImage():
     if len(history) > 0:        
@@ -82,51 +82,37 @@ class MainWindow(QMainWindow):
         
     def undo(self):
         # call modify history, remove image in last index of history
-        newImage = modifyHistory(None, "undo")
-        self.imageHandler(self, newImage, "display")
-
-
-        # pass this new image to imageHandler to be displayed
+        modifyHistory(None, "undo")
+        self.imageHandler(self, "display")
         
 
-    def openFile(self):
-        options = QFileDialog.Options()
-        fileName, _ = QFileDialog.getOpenFileName(self,"Select an image", "","Image Files (*.png *.jpg *.bmp)", options=options)
-        if fileName:
-            imageData = QImage(fileName).convertToFormat(QImage.Format_RGB32)
-            self.imageHandler(self, imageData, "open")
+    def openFile(self):  
+        self.imageHandler(self, "open")
     
     @staticmethod
     ## handles modifications/undo, changes history, updates display image
-    def imageHandler(self, img, arg_str):
-        if img == False:
-            return
+    def imageHandler(self, arg_str):
         if arg_str == "open":
-            modifyHistory(img, "open")
+            options = QFileDialog.Options()
+            fileName, _ = QFileDialog.getOpenFileName(self,"Select an image", "","Image Files (*.png *.jpg *.bmp)", options=options)
+            if fileName:
+                img = QImage(fileName).convertToFormat(QImage.Format_RGB32)
+                modifyHistory(img, "open")
         elif arg_str == "b":
             #img = arrayToImage(blurFunction(imageToArray(img)))
             #modifyHistory(img, "add")
-            img = arrayToImage(grayscaleFunction(imageToArray(img)))
+            img = arrayToImage(grayscaleFunction(imageToArray(curImage())))
             modifyHistory(img, "add")
         elif arg_str == "gray":
-            img = arrayToImage(grayscaleFunction(imageToArray(img)))
+            img = arrayToImage(grayscaleFunction(imageToArray(curImage())))
             modifyHistory(img, "add")
         elif arg_str == "undo":
             modifyHistory(False, "undo")
 
-        def curImage():
-            if len(history) > 0:        
-                latestImage = history[len(history) - 1]
-                return latestImage
-            else:
-                return False
-
         displayedImage = curImage()
         if not (displayedImage == False):
             self.displayNewImage(self, displayedImage)
-        return
-    
-    # QImage -> void
+        
     @staticmethod
     def displayNewImage(self, qimg):
         pixmap = QPixmap.fromImage(qimg)
@@ -150,7 +136,7 @@ class MainWindow(QMainWindow):
         self.exitaction.triggered.connect(self.exitFile)
         # when forward image modification is triggered, call image handler with the 
         # appropriate argument string
-        self.bluraction.triggered.connect(lambda:self.imageHandler(self, curImage(), "b"))
+        self.bluraction.triggered.connect(lambda:self.imageHandler(self, "b"))
 
     def createImageWindow(self):
         self.ImageWindow = QLabel()

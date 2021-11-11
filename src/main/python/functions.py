@@ -64,7 +64,7 @@ def grayscaleFunction(img):
         for j, pix in enumerate(row):
 
             ## compute linear transform of r[0]g[1]b[2] values
-            c_linear = (0.2126 * pix[0]/255) + (0.7152 * pix[1]/255) + (0.0722 * pix[2]/255)
+            c_linear = (0.2126 * pix[0]/255.0) + (0.7152 * pix[1]/255.0) + (0.0722 * pix[2]/255.0)
             c_srgb = 1
 
             ## non-linear gamma correction
@@ -75,6 +75,7 @@ def grayscaleFunction(img):
             pix[0] = c_srgb * 255    
             pix[1] = c_srgb * 255
             pix[2] = c_srgb * 255  
+        print(row)
     return img
 
 
