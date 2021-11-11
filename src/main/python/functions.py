@@ -14,7 +14,7 @@ def imageToArray(img):
 def arrayToImage(arr):
     height, width, channel = arr.shape
     bytesPerLine = 4 * width
-    qimg = QImage(arr.data, height, width, bytesPerLine, QImage.Format_RGB32)
+    qimg = QImage(arr.data, width, height, bytesPerLine, QImage.Format_RGB32)
     return qimg
 
 ## numpy array -> QImage
@@ -75,7 +75,6 @@ def grayscaleFunction(img):
             pix[0] = c_srgb * 255    
             pix[1] = c_srgb * 255
             pix[2] = c_srgb * 255  
-        print(row)
     return img
 
 

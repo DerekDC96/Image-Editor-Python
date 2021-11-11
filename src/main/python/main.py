@@ -1,10 +1,14 @@
 from fbs_runtime.application_context.PyQt5 import ApplicationContext
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QObject, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage
+from time import sleep
 from functions import arrayToImage, imageToArray, blurFunction, grayscaleFunction
 
 import sys
+
+
+#https://realpython.com/python-pyqt-qthread/
 
 history = []
 # QImage or False ->  void
@@ -32,6 +36,25 @@ def curImage():
         return latestImage
     else:
         return False
+
+class Worker(QObject):
+    finished = pyqtSignal()
+    progress = pyqtSignal(int)
+
+    def run(self, arg_str):
+        if arg_str == "b":
+            #img = arrayToImage(blurFunction(imageToArray(img)))
+            #modifyHistory(img, "add")
+            img = arrayToImage(grayscaleFunction(imageToArray(curImage())))
+            modifyHistory(img, "add")
+        elif arg_str == "gray":
+            img = arrayToImage(grayscaleFunction(imageToArray(curImage())))
+            modifyHistory(img, "add")
+        elif arg_str == "undo":
+            modifyHistory(False, "undo")  
+        self.finished.emit()
+        return
+
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
@@ -85,38 +108,49 @@ class MainWindow(QMainWindow):
         modifyHistory(None, "undo")
         self.imageHandler(self, "display")
         
-
     def openFile(self):  
-        self.imageHandler(self, "open")
-    
-    @staticmethod
-    ## handles modifications/undo, changes history, updates display image
-    def imageHandler(self, arg_str):
-        if arg_str == "open":
-            options = QFileDialog.Options()
-            fileName, _ = QFileDialog.getOpenFileName(self,"Select an image", "","Image Files (*.png *.jpg *.bmp)", options=options)
-            if fileName:
-                img = QImage(fileName).convertToFormat(QImage.Format_RGB32)
-                modifyHistory(img, "open")
-        elif arg_str == "b":
-            #img = arrayToImage(blurFunction(imageToArray(img)))
-            #modifyHistory(img, "add")
-            img = arrayToImage(grayscaleFunction(imageToArray(curImage())))
-            modifyHistory(img, "add")
-        elif arg_str == "gray":
-            img = arrayToImage(grayscaleFunction(imageToArray(curImage())))
-            modifyHistory(img, "add")
-        elif arg_str == "undo":
-            modifyHistory(False, "undo")
+        options = QFileDialog.Options()
+        fileName, _ = QFileDialog.getOpenFileName(self,"Select an image", "","Image Files (*.png *.jpg *.bmp)", options=options)
+        if fileName:
+            img = QImage(fileName).convertToFormat(QImage.Format_RGB32)
+            modifyHistory(img, "open")
+            self.displayNewImage()
 
-        displayedImage = curImage()
-        if not (displayedImage == False):
-            self.displayNewImage(self, displayedImage)
+
+    
+    def runImageHandler(self, arg_str):
+        #creates separate thread for running imagehandler
+        self.thread = QThread()
+        self.worker = Worker()
+        self.worker.moveToThread(self.thread)
+         # Step 5: Connect signals and slots
+        self.thread.started.connect(lambda:self.worker.run(arg_str))
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        #self.worker.progress.connect(self.reportProgress)
+        # Step 6: Start the thread
+
+        self.thread.start()
+        # disable all buttons
+        self.button1.setEnabled(False)
+        self.button2.setEnabled(False)
+        ## enable all buttons and update image
+        self.thread.finished.connect(
+            lambda:self.displayNewImage()
+        )
+        self.thread.finished.connect(
+            lambda: self.button1.setEnabled(True)
+        )
+        self.thread.finished.connect(
+            lambda: self.button2.setEnabled(True)
+        )
         
-    @staticmethod
-    def displayNewImage(self, qimg):
-        pixmap = QPixmap.fromImage(qimg)
-        self.ImageWindow.setPixmap(pixmap)
+
+    def displayNewImage(self):
+        if len(history) > 0:
+            pixmap = QPixmap.fromImage(curImage())
+            self.ImageWindow.setPixmap(pixmap)
         
     def saveFile(self):
         options = QFileDialog.Options()
@@ -134,6 +168,8 @@ class MainWindow(QMainWindow):
         self.openaction.triggered.connect(self.openFile)
         self.saveaction.triggered.connect(self.saveFile)
         self.exitaction.triggered.connect(self.exitFile)
+        
+
         # when forward image modification is triggered, call image handler with the 
         # appropriate argument string
         self.bluraction.triggered.connect(lambda:self.imageHandler(self, "b"))
@@ -148,11 +184,15 @@ class MainWindow(QMainWindow):
     
     def createTopGroup(self):
         self.TopGroup = QGroupBox("Top Group")
-        button1 = QPushButton("Button1")
-        button2 = QPushButton("Button2")
+        self.button1 = QPushButton("Button1")
+        #
+        self.button1.clicked.connect(lambda:self.runImageHandler("gray"))#####
+        self.button2 = QPushButton("Button2")
+        self.button2.clicked.connect(lambda:self.displayNewImage())
+
         layout = QHBoxLayout()
-        layout.addWidget(button1)
-        layout.addWidget(button2)
+        layout.addWidget(self.button1)
+        layout.addWidget(self.button2)
         self.TopGroup.setLayout(layout)
 
     def createBotGroup(self):
