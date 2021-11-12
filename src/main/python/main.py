@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt, QObject, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage
 from time import sleep
-from functions import arrayToImage, imageToArray, blurFunction#, grayscaleFunction
+
 import numpy as np
 import sys
 
@@ -37,47 +37,33 @@ def curImage():
         return False
 
 class Worker(QObject):
+    from functions import arrayToImage, imageToArray, blurFunction, grayscaleFunction, redtintFunction
     finished = pyqtSignal()
     progress = pyqtSignal(int)
 
     def run(self, arg_str):
         if arg_str == "blur":
-            img = arrayToImage(blurFunction(imageToArray(curImage())))
+            img = self.arrayToImage(self.blurFunction(self.imageToArray(curImage())))
             modifyHistory(img, "add")
         elif arg_str == "gray":
-            img = arrayToImage(self.grayscaleFunction(imageToArray(curImage())))
+            img = self.arrayToImage(self.grayscaleFunction(self.imageToArray(curImage())))
             modifyHistory(img, "add")
         elif arg_str == "undo":
             modifyHistory(False, "undo")  
         elif arg_str == "reset":
             modifyHistory(False, "reset")
+        elif arg_str == "redtint":
+            img = self.arrayToImage(self.redtintFunction(self.imageToArray(curImage())))
+            modifyHistory(img, "add")
         self.finished.emit()
         return
     
-    def grayscaleFunction(self, img):
-        shape = np.array(img.shape)
-        grayedImage = np.empty(shape)
-        for i, row in enumerate(img):
-            for j, pix in enumerate(row):
-                ## compute linear transform of r[0]g[1]b[2] values
-                c_linear = (0.2126 * pix[0]/255.0) + (0.7152 * pix[1]/255.0) + (0.0722 * pix[2]/255.0)
-                c_srgb = 1
-                ## non-linear gamma correction
-                if c_linear <= 0.0031308:
-                    c_srgb = c_linear * 12.92
-                else:
-                    c_srgb = 1.055 * (c_linear**(1/2.4)) - 0.055
-                pix[0] = c_srgb * 255    
-                pix[1] = c_srgb * 255
-                pix[2] = c_srgb * 255
-            self.progress.emit(i + 1)
-            
-        return img
-
+    
 
 class MainWindow(QMainWindow):
+    
     def __init__(self, parent=None):
-        super(MainWindow, self).__init__(parent)
+        super(MainWindow, self).__init__(parent)    
         self.setWindowTitle("Image Editor")
 
         self.createMenuBar()
@@ -99,6 +85,77 @@ class MainWindow(QMainWindow):
         widget.setLayout(mainLayout)
         self.setCentralWidget(widget)
     
+    def runImageHandler(self, arg_str):
+        # separate thread for running imagehandler
+        self.thread = QThread()
+        self.worker = Worker()
+        self.worker.moveToThread(self.thread)
+         # Step 5: Connect signals and slots
+        self.thread.started.connect(lambda:self.worker.run(arg_str))
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        self.worker.progress.connect(self.reportProgress)
+        
+        # Step 6: Start the thread
+        self.thread.start()
+
+        # disable all buttons
+        self.button1.setEnabled(False)
+        self.button2.setEnabled(False)
+        self.button3.setEnabled(False)
+        self.button4.setEnabled(False)
+
+        # enable all buttons, update image, reset progress bar
+        self.thread.finished.connect(lambda: self.displayNewImage())
+        self.thread.finished.connect(lambda: self.reportProgress(0))
+
+        if not False == curImage():
+            # handles edge cases for undo and reset
+            self.thread.finished.connect(lambda: self.button1.setEnabled(True))
+            self.thread.finished.connect(lambda: self.button2.setEnabled(True))
+            self.thread.finished.connect(lambda: self.button3.setEnabled(True))
+            self.thread.finished.connect(lambda: self.button4.setEnabled(True))
+        
+    def reportProgress(self, n):
+        self.pbar.setValue(n)
+        
+    def displayNewImage(self):
+        if len(history) > 0:
+            pixmap = QPixmap.fromImage(curImage())
+            self.ImageWindow.setPixmap(pixmap)
+    
+    def openFile(self):  
+        options = QFileDialog.Options()
+        fileName, _ = QFileDialog.getOpenFileName(self,"Select an image", "","Image Files (*.png *.jpg *.bmp)", options=options)
+        if fileName:
+            img = QImage(fileName).convertToFormat(QImage.Format_RGB32)
+            modifyHistory(img, "open")
+            self.displayNewImage()
+            self.setWindowTitle("Image Editor                  " + fileName)
+            self.button1.setEnabled(True)
+            self.button2.setEnabled(True)
+            self.button3.setEnabled(True)
+            self.button4.setEnabled(True)
+
+    def saveFile(self):
+        img = curImage()
+        if not False == img:
+            options = QFileDialog.Options()
+            fileName, _ = QFileDialog.getSaveFileName(self,"Save as ...","","Image Files (*.png *.jpg *.bmp)", options=options)
+            img.save(fileName)
+
+    def exitFile(self):
+        exit_code = appctxt.app.exec()
+        sys.exit(exit_code)
+
+    def connectActions(self):
+        self.openaction.triggered.connect(self.openFile)
+        self.saveaction.triggered.connect(self.saveFile)
+        self.exitaction.triggered.connect(self.exitFile)
+        self.undoaction.triggered.connect(lambda:self.runImageHandler("undo"))
+        self.resetaction.triggered.connect(lambda:self.runImageHandler("reset"))
+
     def createMenuBar(self):
         menuBar = self.menuBar()
         self.setMenuBar(menuBar)
@@ -124,62 +181,6 @@ class MainWindow(QMainWindow):
         fileMenu.addAction(self.exitaction)
 
         menuBar.addMenu(fileMenu)
-        
-    def openFile(self):  
-        options = QFileDialog.Options()
-        fileName, _ = QFileDialog.getOpenFileName(self,"Select an image", "","Image Files (*.png *.jpg *.bmp)", options=options)
-        if fileName:
-            img = QImage(fileName).convertToFormat(QImage.Format_RGB32)
-            modifyHistory(img, "open")
-            self.displayNewImage()
-
-    def runImageHandler(self, arg_str):
-        #creates separate thread for running imagehandler
-        self.thread = QThread()
-        self.worker = Worker()
-        self.worker.moveToThread(self.thread)
-         # Step 5: Connect signals and slots
-        self.thread.started.connect(lambda:self.worker.run(arg_str))
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self.thread.deleteLater)
-        self.worker.progress.connect(self.reportProgress)
-        # Step 6: Start the thread
-
-        self.thread.start()
-
-        # disable all buttons
-        self.button1.setEnabled(False)
-        self.button2.setEnabled(False)
-
-        ## enable all buttons and update image
-        self.thread.finished.connect(lambda:self.displayNewImage())
-        self.thread.finished.connect(lambda: self.button1.setEnabled(True))
-        self.thread.finished.connect(lambda: self.button2.setEnabled(True))
-        
-    def displayNewImage(self):
-        if len(history) > 0:
-            pixmap = QPixmap.fromImage(curImage())
-            self.ImageWindow.setPixmap(pixmap)
-        
-    def saveFile(self):
-        img = curImage()
-        if not False == img:
-            options = QFileDialog.Options()
-            fileName, _ = QFileDialog.getSaveFileName(self,"Save as ...","","Image Files (*.png *.jpg *.bmp)", options=options)
-            img.save(fileName)
-
-    def exitFile(self):
-        exit_code = appctxt.app.exec()
-        sys.exit(exit_code)
-
-    def connectActions(self):
-        self.openaction.triggered.connect(self.openFile)
-        self.saveaction.triggered.connect(self.saveFile)
-        self.exitaction.triggered.connect(self.exitFile)
-        self.undoaction.triggered.connect(lambda:self.runImageHandler("undo"))
-        self.resetaction.triggered.connect(lambda:self.runImageHandler("reset"))
-
 
     def createImageWindow(self):
         self.ImageWindow = QLabel()
@@ -189,8 +190,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.ImageWindow)
         self.resize(background.width(), background.height())
     
-    def reportProgress(self, n):
-        self.pbar.setValue(n)
+    
 
     def createTopGroup(self):
         self.TopGroup = QGroupBox("Top Group")
@@ -200,10 +200,19 @@ class MainWindow(QMainWindow):
         self.button2.clicked.connect(lambda:self.runImageHandler("blur"))
         self.button3 = QPushButton("Undo")
         self.button3.clicked.connect(lambda:self.runImageHandler("undo"))
+        self.button4 = QPushButton("Red Tint")
+        self.button4.clicked.connect(lambda:self.runImageHandler("redtint"))
+
+        self.button1.setEnabled(False)
+        self.button2.setEnabled(False)
+        self.button3.setEnabled(False)
+        self.button4.setEnabled(False)
 
         layout = QHBoxLayout()
         layout.addWidget(self.button1)
         layout.addWidget(self.button2)
+        layout.addWidget(self.button3)
+        layout.addWidget(self.button4)
         self.TopGroup.setLayout(layout)
 
     def createBotGroup(self):
