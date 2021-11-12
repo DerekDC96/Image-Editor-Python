@@ -74,7 +74,8 @@ def grayscaleFunction(img):
                 c_srgb = 1.055 * (c_linear**(1/2.4)) - 0.055
             pix[0] = c_srgb * 255    
             pix[1] = c_srgb * 255
-            pix[2] = c_srgb * 255  
+            pix[2] = c_srgb * 255
+            
     return img
 
 
