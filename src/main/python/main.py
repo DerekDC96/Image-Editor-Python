@@ -4,15 +4,16 @@ from PyQt5.QtCore import Qt, QObject, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage
 from time import sleep
 
+
 import numpy as np
 import sys
+
 
 
 #https://realpython.com/python-pyqt-qthread/
 
 history = []
-# QImage or False ->  void
-# modifies array of images based on action
+# numpy array (RGBA) or False ->  void
 def modifyHistory(image, action):
     if action == "add":
         history.append(image) 
@@ -29,6 +30,7 @@ def modifyHistory(image, action):
             history.pop(len(history) - 1)
     return 
 
+## returns arra of RGBA
 def curImage():
     if len(history) > 0:        
         latestImage = history[len(history) - 1]
@@ -37,23 +39,29 @@ def curImage():
         return False
 
 class Worker(QObject):
-    from functions import arrayToImage, imageToArray, blurFunction, grayscaleFunction, redtintFunction
+    from functions import arrayToImage, imageToArray, blurFunction, grayscaleFunction, redtintFunction, evilFunction, outlineFunction
     finished = pyqtSignal()
     progress = pyqtSignal(int)
 
     def run(self, arg_str):
         if arg_str == "blur":
-            img = self.arrayToImage(self.blurFunction(self.imageToArray(curImage())))
+            img = self.blurFunction(curImage())
             modifyHistory(img, "add")
         elif arg_str == "gray":
-            img = self.arrayToImage(self.grayscaleFunction(self.imageToArray(curImage())))
+            img = self.grayscaleFunction(curImage())
             modifyHistory(img, "add")
         elif arg_str == "undo":
             modifyHistory(False, "undo")  
         elif arg_str == "reset":
             modifyHistory(False, "reset")
         elif arg_str == "redtint":
-            img = self.arrayToImage(self.redtintFunction(self.imageToArray(curImage())))
+            img = self.redtintFunction(curImage())
+            modifyHistory(img, "add")
+        elif arg_str == "evil":
+            img = self.evilFunction(curImage())
+            modifyHistory(img, "add")
+        elif arg_str == "outline":
+            img = self.outlineFunction(curImage())
             modifyHistory(img, "add")
         self.finished.emit()
         return
@@ -61,7 +69,7 @@ class Worker(QObject):
     
 
 class MainWindow(QMainWindow):
-    
+    from functions import arrayToImage, imageToArray
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)    
         self.setWindowTitle("Image Editor")
@@ -105,31 +113,43 @@ class MainWindow(QMainWindow):
         self.button2.setEnabled(False)
         self.button3.setEnabled(False)
         self.button4.setEnabled(False)
+        self.button5.setEnabled(False)
+        self.button6.setEnabled(False)
+        self.button7.setEnabled(False)
+        self.button8.setEnabled(False)
+        self.button9.setEnabled(False)
+        self.button10.setEnabled(False)
 
         # enable all buttons, update image, reset progress bar
         self.thread.finished.connect(lambda: self.displayNewImage())
         self.thread.finished.connect(lambda: self.reportProgress(0))
 
-        if not False == curImage():
+        if hasattr(curImage(), "__len__"):
             # handles edge cases for undo and reset
             self.thread.finished.connect(lambda: self.button1.setEnabled(True))
             self.thread.finished.connect(lambda: self.button2.setEnabled(True))
             self.thread.finished.connect(lambda: self.button3.setEnabled(True))
             self.thread.finished.connect(lambda: self.button4.setEnabled(True))
+            self.thread.finished.connect(lambda: self.button5.setEnabled(True))
+            self.thread.finished.connect(lambda: self.button6.setEnabled(True))
+            self.thread.finished.connect(lambda: self.button7.setEnabled(True))
+            self.thread.finished.connect(lambda: self.button8.setEnabled(True))
+            self.thread.finished.connect(lambda: self.button9.setEnabled(True))
+            self.thread.finished.connect(lambda: self.button10.setEnabled(True))
         
     def reportProgress(self, n):
         self.pbar.setValue(n)
         
     def displayNewImage(self):
         if len(history) > 0:
-            pixmap = QPixmap.fromImage(curImage())
+            pixmap = QPixmap.fromImage(self.arrayToImage(curImage()))
             self.ImageWindow.setPixmap(pixmap)
     
     def openFile(self):  
         options = QFileDialog.Options()
         fileName, _ = QFileDialog.getOpenFileName(self,"Select an image", "","Image Files (*.png *.jpg *.bmp)", options=options)
         if fileName:
-            img = QImage(fileName).convertToFormat(QImage.Format_RGB32)
+            img = self.imageToArray(QImage(fileName).convertToFormat(QImage.Format_RGB32))
             modifyHistory(img, "open")
             self.displayNewImage()
             self.setWindowTitle("Image Editor                  " + fileName)
@@ -137,9 +157,15 @@ class MainWindow(QMainWindow):
             self.button2.setEnabled(True)
             self.button3.setEnabled(True)
             self.button4.setEnabled(True)
+            self.button5.setEnabled(True)
+            self.button6.setEnabled(True)
+            self.button7.setEnabled(True)
+            self.button8.setEnabled(True)
+            self.button9.setEnabled(True)
+            self.button10.setEnabled(True)
 
     def saveFile(self):
-        img = curImage()
+        img = self.arrayToImage(curImage())
         if not False == img:
             options = QFileDialog.Options()
             fileName, _ = QFileDialog.getSaveFileName(self,"Save as ...","","Image Files (*.png *.jpg *.bmp)", options=options)
@@ -202,17 +228,42 @@ class MainWindow(QMainWindow):
         self.button3.clicked.connect(lambda:self.runImageHandler("undo"))
         self.button4 = QPushButton("Red Tint")
         self.button4.clicked.connect(lambda:self.runImageHandler("redtint"))
+        self.button5 = QPushButton("Invert Color")
+        self.button5.clicked.connect(lambda:self.runImageHandler("evil"))
+        self.button6 = QPushButton("Outline")
+        self.button6.clicked.connect(lambda:self.runImageHandler("outline"))
+        self.button7 = QPushButton("Evil")
+        self.button7.clicked.connect(lambda:self.runImageHandler("evil"))
+        self.button8 = QPushButton("Evil")
+        self.button8.clicked.connect(lambda:self.runImageHandler("evil"))
+        self.button9 = QPushButton("Evil")
+        self.button9.clicked.connect(lambda:self.runImageHandler("evil"))
+        self.button10 = QPushButton("Evil")
+        self.button10.clicked.connect(lambda:self.runImageHandler("evil"))
 
         self.button1.setEnabled(False)
         self.button2.setEnabled(False)
         self.button3.setEnabled(False)
         self.button4.setEnabled(False)
+        self.button5.setEnabled(False)
+        self.button6.setEnabled(False)
+        self.button7.setEnabled(False)
+        self.button8.setEnabled(False)
+        self.button9.setEnabled(False)
+        self.button10.setEnabled(False)
 
         layout = QHBoxLayout()
         layout.addWidget(self.button1)
         layout.addWidget(self.button2)
         layout.addWidget(self.button3)
         layout.addWidget(self.button4)
+        layout.addWidget(self.button5)
+        layout.addWidget(self.button6)
+        layout.addWidget(self.button7)
+        layout.addWidget(self.button8)
+        layout.addWidget(self.button9)
+        layout.addWidget(self.button10)
+
         self.TopGroup.setLayout(layout)
 
     def createBotGroup(self):
