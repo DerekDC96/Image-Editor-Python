@@ -39,7 +39,7 @@ def curImage():
         return False
 
 class Worker(QObject):
-    from functions import arrayToImage, imageToArray, blurFunction, grayscaleFunction, redtintFunction, evilFunction, outlineFunction
+    from functions import arrayToImage, imageToArray, blurFunction, grayscaleFunction, redtintFunction, evilFunction, outlineFunction, rotate90, flipx, flipy
     finished = pyqtSignal()
     progress = pyqtSignal(int)
 
@@ -63,6 +63,15 @@ class Worker(QObject):
         elif arg_str == "outline":
             img = self.outlineFunction(curImage())
             modifyHistory(img, "add")
+        elif arg_str == "rotate":
+            img = self.rotate90(curImage())
+            modifyHistory(img, "add")
+        elif arg_str == "flipx":
+            img = self.flipx(curImage())
+            modifyHistory(img, "add")
+        elif arg_str == "flipy":
+            img = self.flipy(curImage())
+            modifyHistory(img, "add")  
         self.finished.emit()
         return
     
@@ -219,7 +228,7 @@ class MainWindow(QMainWindow):
     
 
     def createTopGroup(self):
-        self.TopGroup = QGroupBox("Top Group")
+        self.TopGroup = QGroupBox("Modify Image")
         self.button1 = QPushButton("Grayscale")
         self.button1.clicked.connect(lambda:self.runImageHandler("gray"))
         self.button2 = QPushButton("Blur")
@@ -232,12 +241,12 @@ class MainWindow(QMainWindow):
         self.button5.clicked.connect(lambda:self.runImageHandler("evil"))
         self.button6 = QPushButton("Outline")
         self.button6.clicked.connect(lambda:self.runImageHandler("outline"))
-        self.button7 = QPushButton("Evil")
-        self.button7.clicked.connect(lambda:self.runImageHandler("evil"))
-        self.button8 = QPushButton("Evil")
-        self.button8.clicked.connect(lambda:self.runImageHandler("evil"))
-        self.button9 = QPushButton("Evil")
-        self.button9.clicked.connect(lambda:self.runImageHandler("evil"))
+        self.button7 = QPushButton("Rotate")
+        self.button7.clicked.connect(lambda:self.runImageHandler("rotate"))
+        self.button8 = QPushButton("Flip Hori")
+        self.button8.clicked.connect(lambda:self.runImageHandler("flipx"))
+        self.button9 = QPushButton("Flip Vert")
+        self.button9.clicked.connect(lambda:self.runImageHandler("flipy"))
         self.button10 = QPushButton("Evil")
         self.button10.clicked.connect(lambda:self.runImageHandler("evil"))
 
@@ -252,22 +261,19 @@ class MainWindow(QMainWindow):
         self.button9.setEnabled(False)
         self.button10.setEnabled(False)
 
-        layout = QHBoxLayout()
-        layout.addWidget(self.button1)
-        layout.addWidget(self.button2)
-        layout.addWidget(self.button3)
-        layout.addWidget(self.button4)
-        layout.addWidget(self.button5)
-        layout.addWidget(self.button6)
-        layout.addWidget(self.button7)
-        layout.addWidget(self.button8)
-        layout.addWidget(self.button9)
-        layout.addWidget(self.button10)
+        layout = QGridLayout()
+        layout.addWidget(self.button1, 0, 0)
+        layout.addWidget(self.button2, 0, 1)
+        layout.addWidget(self.button3, 0, 2)
+        layout.addWidget(self.button4, 0, 3)
+        layout.addWidget(self.button5, 1, 0)
+        layout.addWidget(self.button6, 1, 1)
+        layout.addWidget(self.button7, 1, 2)
+        layout.addWidget(self.button8, 1, 3)
+        layout.addWidget(self.button9, 2, 0)
+        layout.addWidget(self.button10, 2, 1)
 
         self.TopGroup.setLayout(layout)
-
-    def createBotGroup(self):
-        self.BotGroup = QGroupBox("Bot Group")
 
 
 

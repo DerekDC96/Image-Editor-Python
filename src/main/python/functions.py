@@ -1,10 +1,9 @@
 import math
-from sys import getsizeof
-from PyQt5.QtCore import Qt, QObject, QThread, pyqtSignal
-from PyQt5.QtGui import QPixmap, QImage
-import unittest
 
+from PyQt5.QtCore import Qt, QObject, QThread, pyqtSignal
 import numpy as np
+from PyQt5.QtGui import QPixmap, QImage
+
 
 # QImage(4) -> #D numpy.array of RGBA values ()
 def imageToArray(self, img):
@@ -23,7 +22,6 @@ def arrayToImage(self, arr):
     bytesPerLine = 4 * width
     qimg = QImage(arr.data, width, height, bytesPerLine, QImage.Format_RGB32)
     return qimg
-
 
 ## numpy Array -> numpy Array
 def blurFunction1(self, img):
@@ -157,6 +155,40 @@ def outlineFunction(self, img):
                 sobelimg[i][j][2] = math.sqrt(sobelGx**2 + sobelGy**2)
         self.progress.emit(((i*100)-1)/shape[0])
     return sobelimg
+
+def rotate90(self, img):
+    shape = np.array(img.shape)
+    height, width, channel = img.shape
+    rotatedimg = np.empty((width, height, channel), dtype=np.uint8)
+
+    for i, row in enumerate(rotatedimg):
+        for j, pix in enumerate(row):
+            rotatedimg[i][j] = img[height-j-1][i]
+        self.progress.emit(((i*100)-1)/shape[0])
+    return rotatedimg
+
+def flipx(self, img):
+    shape = np.array(img.shape)
+    height, width, channel = img.shape
+    flippedimg = np.empty((height, width, channel), dtype=np.uint8)
+    for i, row in enumerate(flippedimg):
+        for j, pix in enumerate(row):
+            flippedimg[i][j] = img[i][width-j-1]
+        self.progress.emit(((i*100)-1)/shape[0])
+    return flippedimg
+
+def flipy(self,img):
+    shape = np.array(img.shape)
+    height, width, channel = img.shape
+    flippedimg = np.empty((height, width, channel), dtype=np.uint8)
+    for i, row in enumerate(flippedimg):
+        for j, pix in enumerate(row):
+            flippedimg[i][j] = img[height-i-1][j]
+        self.progress.emit(((i*100)-1)/shape[0])
+    return flippedimg
+
+    
+
 
 
 
